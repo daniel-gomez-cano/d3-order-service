@@ -22,3 +22,32 @@
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
+
+# ========================
+# MAVEN
+# ========================
+target/
+# ========================
+# VARIABLES DE ENTORNO
+# ========================
+.env
+
+# ========================
+# EDITOR
+# ========================
+.vscode/
+.metals/
+.idea/
+*.iml
+
+# ========================
+# JAVA
+# ========================
+*.class
+*.log
+
+# ========================
+# SISTEMA OPERATIVO
+# ========================
+.DS_Store
+Thumbs.db
