@@ -39,14 +39,14 @@ public class CartController {
 
     // SCRUM-42
     @GetMapping
-    @PreAuthorize("hasRole('ROLE_CLIENT')")
+    @PreAuthorize("hasAuthority('ROLE_CLIENT')")
     public ResponseEntity<CartResponse> getOrCreate(@AuthenticationPrincipal Jwt jwt) {
         return ResponseEntity.ok(service.getOrCreateCart(jwt.getSubject()));
     }
 
     // SCRUM-43
     @PostMapping("/items")
-    @PreAuthorize("hasRole('ROLE_CLIENT')")
+    @PreAuthorize("hasAuthority('ROLE_CLIENT')")
     public ResponseEntity<CartResponse> addItem(
             @Valid @RequestBody AddItemRequest req,
             @AuthenticationPrincipal Jwt jwt) {
@@ -55,7 +55,7 @@ public class CartController {
 
     // SCRUM-44
     @PutMapping("/items/{itemId}")
-    @PreAuthorize("hasRole('ROLE_CLIENT')")
+    @PreAuthorize("hasAuthority('ROLE_CLIENT')")
     public ResponseEntity<CartResponse> updateItem(
             @PathVariable String itemId,
             @Valid @RequestBody UpdateItemRequest req,
@@ -65,7 +65,7 @@ public class CartController {
 
     // SCRUM-45
     @DeleteMapping("/items/{itemId}")
-    @PreAuthorize("hasRole('ROLE_CLIENT')")
+    @PreAuthorize("hasAuthority('ROLE_CLIENT')")
     public ResponseEntity<CartResponse> removeItem(
             @PathVariable String itemId,
             @AuthenticationPrincipal Jwt jwt) {
@@ -74,7 +74,7 @@ public class CartController {
 
     // SCRUM-47
     @PostMapping("/discount")
-    @PreAuthorize("hasRole('ROLE_CLIENT')")
+    @PreAuthorize("hasAuthority('ROLE_CLIENT')")
     public ResponseEntity<CartResponse> applyDiscount(
             @Valid @RequestBody ApplyDiscountRequest req,
             @AuthenticationPrincipal Jwt jwt) {
@@ -83,7 +83,7 @@ public class CartController {
 
     // SCRUM-48
     @GetMapping("/summary")
-    @PreAuthorize("hasRole('ROLE_CLIENT')")
+    @PreAuthorize("hasAuthority('ROLE_CLIENT')")
     public ResponseEntity<CartSummaryResponse> getSummary(@AuthenticationPrincipal Jwt jwt) {
         return ResponseEntity.ok(service.getSummary(jwt.getSubject()));
     }

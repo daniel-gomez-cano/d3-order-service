@@ -5,6 +5,8 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -30,7 +32,7 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class CartService {
-
+    private static final Logger log = LoggerFactory.getLogger(CartService.class);    
     private final CartRepository cartRepo;
     private final DiscountCodeRepository discountRepo;
     private final TicketServiceClient ticketClient;
@@ -38,20 +40,36 @@ public class CartService {
     //  SCRUM-42: Obtener o crear carrito activo 
 
     @Transactional
-    public CartResponse getOrCreateCart(String buyerId) {
+        public CartResponse getOrCreateCart(String buyerId) {
         Cart cart = cartRepo.findByBuyerIdAndStatus(buyerId, CartStatus.ACTIVE)
-                .filter(c -> !c.isExpired())
+                .map(c -> {
+                        if (c.isExpired()) {
+                        // Marcar el carrito vencido como EXPIRED antes de crear uno nuevo
+                        c.setStatus(CartStatus.EXPIRED);
+                        cartRepo.save(c);
+                        return null;
+                        }
+                        return c;
+                })
                 .orElseGet(() -> {
-                    Cart nuevo = Cart.builder()
-                            .buyerId(buyerId)
-                            .status(CartStatus.ACTIVE)
-                            .build();
-                    return cartRepo.save(nuevo);
+                        Cart nuevo = Cart.builder()
+                                .buyerId(buyerId)
+                                .status(CartStatus.ACTIVE)
+                                .build();
+                        return cartRepo.save(nuevo);
                 });
 
-        return toResponse(cart);
-    }
+        // Si el carrito expiró, cart es null — crear uno nuevo
+        if (cart == null) {
+                Cart nuevo = Cart.builder()
+                        .buyerId(buyerId)
+                        .status(CartStatus.ACTIVE)
+                        .build();
+                cart = cartRepo.save(nuevo);
+        }
 
+        return toResponse(cart);
+        }
     //  SCRUM-43: Agregar ítem al carrito 
 
     @Transactional
@@ -63,8 +81,8 @@ public class CartService {
 
         // Verificar que hay suficientes cupos para la cantidad pedida
         if (info.remainingCapacity() < req.getQuantity()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Solo hay " + info.remainingCapacity() + " cupos disponibles");
+        throw new ResponseStatusException(HttpStatus.CONFLICT,
+                "Solo hay " + info.remainingCapacity() + " cupos disponibles");
         }
 
         // Si ya existe ese tipo en el carrito, actualizar cantidad
@@ -72,16 +90,30 @@ public class CartService {
                 .filter(i -> i.getTicketTypeId().equals(req.getTicketTypeId()))
                 .findFirst()
                 .ifPresentOrElse(
-                        existing -> existing.setQuantity(existing.getQuantity() + req.getQuantity()),
+                        existing -> {
+                        int nuevaCantidad = existing.getQuantity() + req.getQuantity();
+                        // Validar límite de 10 por tipo
+                        if (nuevaCantidad > 10) {
+                                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                                        "Máximo 10 boletas por tipo. Ya tienes "
+                                        + existing.getQuantity() + " en tu carrito");
+                        }
+                        // Validar que haya cupos suficientes para la cantidad total
+                        if (info.remainingCapacity() < nuevaCantidad) {
+                                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                                        "Solo hay " + info.remainingCapacity() + " cupos disponibles");
+                        }
+                        existing.setQuantity(nuevaCantidad);
+                        },
                         () -> {
-                            CartItem item = CartItem.builder()
-                                    .cart(cart)
-                                    .ticketTypeId(info.id())
-                                    .ticketTypeName(info.name())
-                                    .quantity(req.getQuantity())
-                                    .unitPrice(info.price())
-                                    .build();
-                            cart.getItems().add(item);
+                        CartItem item = CartItem.builder()
+                                .cart(cart)
+                                .ticketTypeId(info.id())
+                                .ticketTypeName(info.name())
+                                .quantity(req.getQuantity())
+                                .unitPrice(info.price())
+                                .build();
+                        cart.getItems().add(item);
                         }
                 );
 
@@ -184,7 +216,7 @@ public class CartService {
         }
 
         if (!expired.isEmpty()) {
-            System.out.println("[CartService] Expirados " + expired.size() + " carritos");
+                log.info("Carritos expirados automáticamente: {}", expired.size());
         }
     }
 

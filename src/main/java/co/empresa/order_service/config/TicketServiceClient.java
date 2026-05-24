@@ -1,5 +1,7 @@
 package co.empresa.order_service.config;
 
+import java.math.BigDecimal;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -8,7 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.math.BigDecimal;
+import reactor.core.publisher.Mono;
 
 /*
   Configuración del WebClient que apunta al ticket-service.
@@ -49,8 +51,8 @@ public class TicketServiceClient {
                     .uri("/api/ticket-types/{id}", ticketTypeId)
                     .retrieve()
                     .onStatus(status -> status.value() == 404,
-                            resp -> { throw new ResponseStatusException(HttpStatus.NOT_FOUND,
-                                    "Tipo de boleta no encontrado: " + ticketTypeId); })
+                    resp -> Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND,
+                            "Tipo de boleta no encontrado: " + ticketTypeId)))
                     .bodyToMono(TicketTypeInfo.class)
                     .block();
 

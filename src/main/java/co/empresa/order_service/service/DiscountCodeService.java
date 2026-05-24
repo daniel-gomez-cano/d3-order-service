@@ -1,16 +1,17 @@
 package co.empresa.order_service.service;
 
-import co.empresa.order_service.dto.CreateDiscountCodeRequest;
-import co.empresa.order_service.dto.DiscountCodeResponse;
-import co.empresa.order_service.model.DiscountCode;
-import co.empresa.order_service.repository.DiscountCodeRepository;
-import lombok.RequiredArgsConstructor;
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.List;
+import co.empresa.order_service.dto.CreateDiscountCodeRequest;
+import co.empresa.order_service.dto.DiscountCodeResponse;
+import co.empresa.order_service.model.DiscountCode;
+import co.empresa.order_service.repository.DiscountCodeRepository;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
@@ -21,6 +22,18 @@ public class DiscountCodeService {
     /* Crear un código de descuento (solo ORGANIZER/ADMIN) */
     @Transactional
     public DiscountCodeResponse create(CreateDiscountCodeRequest req, String organizerId) {
+
+        // Validación condicional por tipo
+        if (req.getType() == DiscountCode.DiscountType.PERCENTAGE &&
+                req.getValue().compareTo(java.math.BigDecimal.valueOf(100)) > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "El porcentaje de descuento no puede superar 100%");
+        }
+        if (req.getMaxUses() != null && req.getMaxUses() < 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "El número máximo de usos debe ser al menos 1");
+        }
+
         if (repo.existsByCode(req.getCode().toUpperCase())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Ya existe un código con ese nombre");

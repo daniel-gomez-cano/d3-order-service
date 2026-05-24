@@ -38,7 +38,7 @@ public class DiscountCodeController {
     private final DiscountCodeService service;
 
     @PostMapping
-    @PreAuthorize("hasRole('ROLE_ORGANIZER') or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_ORGANIZER') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<DiscountCodeResponse> create(
             @Valid @RequestBody CreateDiscountCodeRequest req,
             @AuthenticationPrincipal Jwt jwt) {
@@ -48,7 +48,7 @@ public class DiscountCodeController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ROLE_ORGANIZER') or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_ORGANIZER') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<List<DiscountCodeResponse>> list(
             @AuthenticationPrincipal Jwt jwt) {
 
@@ -56,7 +56,7 @@ public class DiscountCodeController {
     }
 
     @PatchMapping("/{id}/toggle")
-    @PreAuthorize("hasRole('ROLE_ORGANIZER') or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_ORGANIZER') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<DiscountCodeResponse> toggle(
             @PathVariable String id,
             @AuthenticationPrincipal Jwt jwt) {
@@ -65,7 +65,7 @@ public class DiscountCodeController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ROLE_ORGANIZER') or hasRole('ROLE_ADMIN')")
+    @PreAuthorize("hasAuthority('ROLE_ORGANIZER') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<Void> delete(
             @PathVariable String id,
             @AuthenticationPrincipal Jwt jwt) {
