@@ -16,7 +16,6 @@ import lombok.Setter;
 
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
 public class CreateDiscountCodeRequest {
-
     @NotBlank
     @Size(min = 3, max = 20)
     private String code;
@@ -30,6 +29,5 @@ public class CreateDiscountCodeRequest {
 
     @Min(value = 1, message = "El número máximo de usos debe ser al menos 1")
     private Integer maxUses;
-
     private LocalDateTime expiresAt;
 }
