@@ -5,8 +5,6 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -15,6 +13,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import co.empresa.order_service.config.TicketServiceClient;
 import co.empresa.order_service.config.TicketServiceClient.TicketTypeInfo;
+import co.empresa.order_service.dto.InternalCartSummaryResponse;
 import co.empresa.order_service.dto.AddItemRequest;
 import co.empresa.order_service.dto.ApplyDiscountRequest;
 import co.empresa.order_service.dto.CartItemResponse;
@@ -32,95 +31,62 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class CartService {
-    private static final Logger log = LoggerFactory.getLogger(CartService.class);    
+
     private final CartRepository cartRepo;
     private final DiscountCodeRepository discountRepo;
     private final TicketServiceClient ticketClient;
 
-    //  SCRUM-42: Obtener o crear carrito activo 
+    // SCRUM-42: Obtener o crear carrito activo
 
     @Transactional
-        public CartResponse getOrCreateCart(String buyerId) {
+    public CartResponse getOrCreateCart(String buyerId) {
         Cart cart = cartRepo.findByBuyerIdAndStatus(buyerId, CartStatus.ACTIVE)
-                .map(c -> {
-                        if (c.isExpired()) {
-                        // Marcar el carrito vencido como EXPIRED antes de crear uno nuevo
-                        c.setStatus(CartStatus.EXPIRED);
-                        cartRepo.save(c);
-                        return null;
-                        }
-                        return c;
-                })
+                .filter(c -> !c.isExpired())
                 .orElseGet(() -> {
-                        Cart nuevo = Cart.builder()
-                                .buyerId(buyerId)
-                                .status(CartStatus.ACTIVE)
-                                .build();
-                        return cartRepo.save(nuevo);
+                    Cart nuevo = Cart.builder()
+                            .buyerId(buyerId)
+                            .status(CartStatus.ACTIVE)
+                            .build();
+                    return cartRepo.save(nuevo);
                 });
 
-        // Si el carrito expiró, cart es null — crear uno nuevo
-        if (cart == null) {
-                Cart nuevo = Cart.builder()
-                        .buyerId(buyerId)
-                        .status(CartStatus.ACTIVE)
-                        .build();
-                cart = cartRepo.save(nuevo);
-        }
-
         return toResponse(cart);
-        }
-    //  SCRUM-43: Agregar ítem al carrito 
+    }
+
+    // SCRUM-43: Agregar ítem al carrito
 
     @Transactional
     public CartResponse addItem(String buyerId, AddItemRequest req) {
         Cart cart = getActiveCart(buyerId);
 
-        // Verificar disponibilidad y obtener precio actual del ticket-service
         TicketTypeInfo info = ticketClient.getTicketTypeInfo(req.getTicketTypeId());
 
-        // Verificar que hay suficientes cupos para la cantidad pedida
         if (info.remainingCapacity() < req.getQuantity()) {
-        throw new ResponseStatusException(HttpStatus.CONFLICT,
-                "Solo hay " + info.remainingCapacity() + " cupos disponibles");
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Solo hay " + info.remainingCapacity() + " cupos disponibles");
         }
 
-        // Si ya existe ese tipo en el carrito, actualizar cantidad
         cart.getItems().stream()
                 .filter(i -> i.getTicketTypeId().equals(req.getTicketTypeId()))
                 .findFirst()
                 .ifPresentOrElse(
-                        existing -> {
-                        int nuevaCantidad = existing.getQuantity() + req.getQuantity();
-                        // Validar límite de 10 por tipo
-                        if (nuevaCantidad > 10) {
-                                throw new ResponseStatusException(HttpStatus.CONFLICT,
-                                        "Máximo 10 boletas por tipo. Ya tienes "
-                                        + existing.getQuantity() + " en tu carrito");
-                        }
-                        // Validar que haya cupos suficientes para la cantidad total
-                        if (info.remainingCapacity() < nuevaCantidad) {
-                                throw new ResponseStatusException(HttpStatus.CONFLICT,
-                                        "Solo hay " + info.remainingCapacity() + " cupos disponibles");
-                        }
-                        existing.setQuantity(nuevaCantidad);
-                        },
+                        existing -> existing.setQuantity(existing.getQuantity() + req.getQuantity()),
                         () -> {
-                        CartItem item = CartItem.builder()
-                                .cart(cart)
-                                .ticketTypeId(info.id())
-                                .ticketTypeName(info.name())
-                                .quantity(req.getQuantity())
-                                .unitPrice(info.price())
-                                .build();
-                        cart.getItems().add(item);
+                            CartItem item = CartItem.builder()
+                                    .cart(cart)
+                                    .ticketTypeId(info.id())
+                                    .ticketTypeName(info.name())
+                                    .quantity(req.getQuantity())
+                                    .unitPrice(info.price())
+                                    .build();
+                            cart.getItems().add(item);
                         }
                 );
 
         return toResponse(cartRepo.save(cart));
     }
 
-    //SCRUM-44: Actualizar cantidad de un ítem 
+    // SCRUM-44: Actualizar cantidad de un ítem
 
     @Transactional
     public CartResponse updateItem(String buyerId, String itemId, UpdateItemRequest req) {
@@ -132,7 +98,6 @@ public class CartService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Ítem no encontrado en tu carrito"));
 
-        // Verificar disponibilidad con la nueva cantidad
         TicketTypeInfo info = ticketClient.getTicketTypeInfo(item.getTicketTypeId());
         if (info.remainingCapacity() < req.getQuantity()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
@@ -143,7 +108,7 @@ public class CartService {
         return toResponse(cartRepo.save(cart));
     }
 
-    //  SCRUM-45: Eliminar ítem del carrito 
+    // SCRUM-45: Eliminar ítem del carrito
 
     @Transactional
     public CartResponse removeItem(String buyerId, String itemId) {
@@ -156,7 +121,7 @@ public class CartService {
         return toResponse(cartRepo.save(cart));
     }
 
-    //  SCRUM-47: Aplicar código de descuento 
+    // SCRUM-47: Aplicar código de descuento
 
     @Transactional
     public CartResponse applyDiscount(String buyerId, ApplyDiscountRequest req) {
@@ -173,7 +138,7 @@ public class CartService {
         return toResponse(cartRepo.save(cart));
     }
 
-    // SCRUM-48: Resumen del carrito 
+    // SCRUM-48: Resumen del carrito
 
     public CartSummaryResponse getSummary(String buyerId) {
         Cart cart = getActiveCart(buyerId);
@@ -200,9 +165,9 @@ public class CartService {
                 .build();
     }
 
-    //Job de expiración automática — corre cada 5 minutos
+    // Job de expiración automática — corre cada 5 minutos
 
-    @Scheduled(fixedRate = 300_000) // 5 minutos en ms
+    @Scheduled(fixedRate = 300_000)
     @Transactional
     public void expireOldCarts() {
         List<Cart> expired = cartRepo.findByStatusAndExpiresAtBefore(
@@ -211,16 +176,130 @@ public class CartService {
         for (Cart cart : expired) {
             cart.setStatus(CartStatus.EXPIRED);
             cartRepo.save(cart);
-            // Aquí se podría publicar un evento para liberar cupos en ticket-service
-            // Por ahora el ticket-service maneja su propio stock al momento de compra
         }
 
         if (!expired.isEmpty()) {
-                log.info("Carritos expirados automáticamente: {}", expired.size());
+            System.out.println("[CartService] Expirados " + expired.size() + " carritos");
         }
     }
 
-    
+    // ================================================================
+    //  MÉTODOS INTERNOS — llamados únicamente por el payment-service
+    // ================================================================
+
+    /**
+     * GET /internal/carts/{cartId}/summary
+     *
+     * Devuelve el resumen del carrito que necesita el payment-service para
+     * crear la preferencia de pago en MercadoPago.
+     */
+    @Transactional(readOnly = true)
+    public InternalCartSummaryResponse getCartSummaryById(String cartId) {
+        Cart cart = cartRepo.findById(cartId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Carrito no encontrado: " + cartId));
+
+        if (cart.getStatus() == CartStatus.EXPIRED) {
+            throw new ResponseStatusException(HttpStatus.GONE,
+                    "El carrito expiró y no puede procesarse.");
+        }
+
+        if (cart.getStatus() == CartStatus.PAID) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Este carrito ya fue pagado.");
+        }
+
+        List<InternalCartSummaryResponse.ItemSummary> items = cart.getItems().stream()
+                .map(i -> InternalCartSummaryResponse.ItemSummary.builder()
+                        .ticketTypeName(i.getTicketTypeName())
+                        .quantity(i.getQuantity())
+                        .unitPrice(i.getUnitPrice())
+                        .build())
+                .toList();
+
+        return InternalCartSummaryResponse.builder()
+                .cartId(cart.getId())
+                .buyerId(cart.getBuyerId())
+                .total(cart.getTotal())
+                .currency("COP")
+                .items(items)
+                .build();
+    }
+
+    /**
+     * POST /internal/carts/{cartId}/checkout
+     *
+     * Marca el carrito como CHECKED_OUT para que el comprador no pueda
+     * modificarlo mientras el pago está en curso.
+     */
+    @Transactional
+    public void markCheckedOut(String cartId) {
+        Cart cart = cartRepo.findById(cartId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Carrito no encontrado: " + cartId));
+
+        if (cart.getStatus() == CartStatus.CHECKED_OUT || cart.getStatus() == CartStatus.PAID) {
+            return;
+        }
+
+        if (cart.getStatus() == CartStatus.EXPIRED) {
+            throw new ResponseStatusException(HttpStatus.GONE,
+                    "El carrito expiró y no puede procesarse.");
+        }
+
+        cart.setStatus(CartStatus.CHECKED_OUT);
+        cartRepo.save(cart);
+    }
+
+    /**
+     * POST /internal/carts/{cartId}/paid
+     *
+     * Marca el carrito como PAID cuando MercadoPago confirma el pago.
+     */
+    @Transactional
+    public void markPaid(String cartId, String paymentId) {
+        Cart cart = cartRepo.findById(cartId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Carrito no encontrado: " + cartId));
+
+        if (cart.getStatus() == CartStatus.PAID) {
+            return;
+        }
+
+        cart.setStatus(CartStatus.PAID);
+        cartRepo.save(cart);
+
+        System.out.println("[CartService] Carrito " + cartId
+                + " marcado PAID — paymentId: " + paymentId);
+    }
+
+    /**
+     * POST /internal/carts/{cartId}/payment-failed
+     *
+     * Revierte el carrito a ACTIVE con 30 minutos extra cuando el pago falla,
+     * para que el comprador pueda intentarlo con otra tarjeta.
+     */
+    @Transactional
+    public void markPaymentFailed(String cartId, String paymentId, String reason) {
+        Cart cart = cartRepo.findById(cartId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Carrito no encontrado: " + cartId));
+
+        if (cart.getStatus() == CartStatus.PAID) {
+            return;
+        }
+
+        cart.setStatus(CartStatus.ACTIVE);
+        cart.setExpiresAt(LocalDateTime.now().plusMinutes(30));
+        cartRepo.save(cart);
+
+        System.out.println("[CartService] Pago fallido para carrito " + cartId
+                + " — motivo: " + reason + " — revertido a ACTIVE con 30 min extra.");
+    }
+
+    // ================================================================
+    //  HELPERS PRIVADOS
+    // ================================================================
 
     private Cart getActiveCart(String buyerId) {
         Cart cart = cartRepo.findByBuyerIdAndStatus(buyerId, CartStatus.ACTIVE)
