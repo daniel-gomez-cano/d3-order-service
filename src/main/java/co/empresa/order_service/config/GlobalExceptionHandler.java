@@ -18,7 +18,7 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-    
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
         Map<String, String> fieldErrors = new HashMap<>();
@@ -42,15 +42,13 @@ public class GlobalExceptionHandler {
         return buildError(HttpStatus.FORBIDDEN, "No tienes permisos para esta acción", null);
     }
 
-    
-
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneric(Exception ex) {
         // Loguear el detalle internamente para debugging
         log.error("Error no controlado: {}", ex.getMessage(), ex);
         // Retornar mensaje genérico al cliente — sin detalles internos
         return buildError(HttpStatus.INTERNAL_SERVER_ERROR,
-            "Ocurrió un error inesperado. Intenta de nuevo.", null);
+            "Ocurrió un error inesperado. Intenta de nuevo." + ex.getMessage(), null);
     }
 
     private ResponseEntity<Map<String, Object>> buildError(
