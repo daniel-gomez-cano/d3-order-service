@@ -78,6 +78,7 @@ public class Cart {
     public enum CartStatus {
         ACTIVE,       // en uso, puede modificarse
         EXPIRED,      // venció el tiempo límite, cupos liberados
-        CHECKED_OUT   // pago iniciado, transferido al payment-service
+        CHECKED_OUT,  // pago iniciado, en espera de confirmación del payment-service
+        PAID          // pago confirmado por el payment-service — flujo completado
     }
 }
