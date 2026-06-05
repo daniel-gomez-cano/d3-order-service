@@ -3,8 +3,10 @@
 #
 #  Qué hace este pipeline:
 #    1. En todo push/PR a main: compila el código y corre los tests.
-#    2. Solo cuando hay merge a main: construye la imagen Docker
-#       y la publica en Docker Hub con dos tags:
+#       Los resultados de tests se muestran en la pestaña "Checks"
+#       de GitHub con una tabla de tests pasados/fallidos.
+#    2. Solo cuando hay merge a main: construye el JAR, luego la
+#       imagen Docker, y la publica en Docker Hub con dos tags:
 #         • latest
 #         • sha-<primeros 7 caracteres del commit>
 #
@@ -22,6 +24,13 @@ on:
   pull_request:
     branches: [ main ]
 
+# Permisos necesarios para que dorny/test-reporter pueda escribir
+# los resultados de tests como un "Check" visible en GitHub
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
 jobs:
 
   # ──────────────────────────────────────────────────────────
@@ -29,7 +38,7 @@ jobs:
   #  Corre tanto en PRs como en merges a main
   # ──────────────────────────────────────────────────────────
   build-and-test:
-    name: 🔨 Compilar y probar
+    name: 🔨 Compilar y testear
     runs-on: ubuntu-latest
 
     steps:
@@ -41,22 +50,30 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: maven          # cachea ~/.m2 entre ejecuciones
+          cache: maven          # cachea ~/.m2 entre ejecuciones → más rápido
 
-      - name: Compilar y ejecutar pruebas
-        run: mvn -B --no-transfer-progress verify
+      - name: Compilar proyecto
+        run: mvn -B --no-transfer-progress compile -q
 
-      # Guarda el reporte de Surefire para revisarlo si algo falla
-      - name: Archivar reporte de pruebas
-        if: always()            # corre aunque los tests fallen
-        uses: actions/upload-artifact@v4
+      # Los tests usan H2 en memoria y Mockito puro, no necesitan
+      # Keycloak ni PostgreSQL corriendo
+      - name: Correr tests
+        run: mvn -B --no-transfer-progress test
+
+      # dorny/test-reporter lee los XML de Surefire y los convierte
+      # en una tabla de resultados visible en la pestaña "Checks" de GitHub.
+      # if: always() garantiza que corre incluso si los tests fallaron,
+      # para que puedas ver QUÉ test falló, no solo "el job falló".
+      - name: Publicar resultados de tests en GitHub
+        uses: dorny/test-reporter@v1
+        if: always()
         with:
-          name: surefire-reports
-          path: target/surefire-reports/
-          retention-days: 7
+          name: Resultados de tests
+          path: target/surefire-reports/*.xml
+          reporter: java-junit
 
   # ──────────────────────────────────────────────────────────
-  #  JOB 2: Construir imagen y publicar en Docker Hub
+  #  JOB 2: Empaquetar JAR y publicar imagen en Docker Hub
   #  Solo corre cuando hay un push (merge) a main
   # ──────────────────────────────────────────────────────────
   docker-publish:
@@ -68,6 +85,18 @@ jobs:
     steps:
       - name: Clonar repositorio
         uses: actions/checkout@v4
+
+      - name: Configurar JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      # Se construye el JAR aquí (sin tests, ya corrieron en el job anterior).
+      # El Dockerfile luego solo copia el JAR — sin descargar Maven dentro de Docker.
+      - name: Empaquetar JAR (sin tests)
+        run: mvn -B --no-transfer-progress package -DskipTests -q
 
       - name: Iniciar sesión en Docker Hub
         uses: docker/login-action@v3
@@ -97,6 +126,5 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Cachea capas de Docker en GitHub Actions → builds más rápidos
           cache-from: type=gha
           cache-to: type=gha,mode=max
