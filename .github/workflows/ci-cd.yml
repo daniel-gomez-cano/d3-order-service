@@ -93,8 +93,6 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      # Se construye el JAR aquí (sin tests, ya corrieron en el job anterior).
-      # El Dockerfile luego solo copia el JAR — sin descargar Maven dentro de Docker.
       - name: Empaquetar JAR (sin tests)
         run: mvn -B --no-transfer-progress package -DskipTests -q
 
@@ -107,24 +105,11 @@ jobs:
       - name: Configurar Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # Genera los tags automáticamente:
-      #   • <usuario>/d3-order-service:latest
-      #   • <usuario>/d3-order-service:sha-a1b2c3d
-      - name: Extraer metadatos (tags y labels)
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/d3-order-service
-          tags: |
-            type=raw,value=latest
-            type=sha,prefix=sha-,format=short
-
       - name: Construir y publicar imagen
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/d3-order-service:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
