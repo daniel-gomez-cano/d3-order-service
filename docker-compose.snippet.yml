@@ -27,3 +27,14 @@
       - order-db-data:/var/lib/postgresql/data
     networks:
       - vivaeventos-net
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # Panel web de administración
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - vivaeventos-net
