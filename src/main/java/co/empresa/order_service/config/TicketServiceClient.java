@@ -19,7 +19,7 @@ class TicketWebClientConfig {
 
     @Bean
     public WebClient ticketServiceWebClient(
-            @Value("${ticket.service.url:http://localhost:8082}") String baseUrl) {
+            @Value("${ticket.service.url:http://ticket-service:8085}") String baseUrl) {
         return WebClient.builder().baseUrl(baseUrl).build();
     }
 }
@@ -69,9 +69,8 @@ public class TicketServiceClient {
         } catch (ResponseStatusException e) {
             throw e;
         } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
-                    "No se pudo contactar el ticket-service. Intenta de nuevo.");
-        }
+            throw new RuntimeException(e);
+    }
     }
 
     /* DTO mínimo con la info que necesitamos del ticket-service */
