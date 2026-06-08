@@ -1,7 +1,29 @@
 package co.empresa.order_service.service;
 
-import co.empresa.order_service.config.TicketServiceClient;
-import co.empresa.order_service.config.TicketServiceClient.TicketTypeInfo;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.mockito.ArgumentMatchers.any;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import org.mockito.junit.jupiter.MockitoExtension;
+import static org.springframework.http.HttpStatus.CONFLICT;
+import static org.springframework.http.HttpStatus.GONE;
+import static org.springframework.http.HttpStatus.NOT_FOUND;
+import org.springframework.web.server.ResponseStatusException;
+
+import co.empresa.order_service.config.EventServiceClient;
+import co.empresa.order_service.config.EventServiceClient.TicketTypeInfo;
 import co.empresa.order_service.dto.AddItemRequest;
 import co.empresa.order_service.dto.ApplyDiscountRequest;
 import co.empresa.order_service.dto.CartResponse;
@@ -11,23 +33,6 @@ import co.empresa.order_service.model.CartItem;
 import co.empresa.order_service.model.DiscountCode;
 import co.empresa.order_service.repository.CartRepository;
 import co.empresa.order_service.repository.DiscountCodeRepository;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.web.server.ResponseStatusException;
-
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Optional;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
-import static org.springframework.http.HttpStatus.*;
 
 /**
  * Tests unitarios de CartService.
@@ -49,7 +54,7 @@ class CartServiceTest {
     private DiscountCodeRepository discountRepo;
 
     @Mock
-    private TicketServiceClient ticketClient;
+    private EventServiceClient eventClient;
 
     @InjectMocks
     private CartService service;
@@ -113,7 +118,7 @@ class CartServiceTest {
                 .thenReturn(Optional.of(carrito));
 
         TicketTypeInfo info = new TicketTypeInfo("tt-1", "VIP", BigDecimal.valueOf(50_000), 10, true);
-        when(ticketClient.getTicketTypeInfo("tt-1")).thenReturn(info);
+        when(eventClient.getTicketTypeInfo("tt-1")).thenReturn(info);
         when(cartRepo.save(carrito)).thenReturn(carrito);
 
         AddItemRequest req = new AddItemRequest();
@@ -136,7 +141,7 @@ class CartServiceTest {
 
         // Solo queda 1 cupo pero se piden 5
         TicketTypeInfo info = new TicketTypeInfo("tt-1", "VIP", BigDecimal.valueOf(50_000), 1, true);
-        when(ticketClient.getTicketTypeInfo("tt-1")).thenReturn(info);
+        when(eventClient.getTicketTypeInfo("tt-1")).thenReturn(info);
 
         AddItemRequest req = new AddItemRequest();
         req.setTicketTypeId("tt-1");
@@ -160,7 +165,7 @@ class CartServiceTest {
                 .thenReturn(Optional.of(carrito));
 
         TicketTypeInfo info = new TicketTypeInfo("tt-1", "VIP", BigDecimal.valueOf(50_000), 10, true);
-        when(ticketClient.getTicketTypeInfo("tt-1")).thenReturn(info);
+        when(eventClient.getTicketTypeInfo("tt-1")).thenReturn(info);
         when(cartRepo.save(carrito)).thenReturn(carrito);
 
         AddItemRequest req = new AddItemRequest();
