@@ -11,8 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import co.empresa.order_service.config.TicketServiceClient;
-import co.empresa.order_service.config.TicketServiceClient.TicketTypeInfo;
+import co.empresa.order_service.config.EventServiceClient;
+import co.empresa.order_service.config.EventServiceClient.TicketTypeInfo;
 import co.empresa.order_service.dto.InternalCartSummaryResponse;
 import co.empresa.order_service.dto.AddItemRequest;
 import co.empresa.order_service.dto.ApplyDiscountRequest;
@@ -34,7 +34,7 @@ public class CartService {
 
     private final CartRepository cartRepo;
     private final DiscountCodeRepository discountRepo;
-    private final TicketServiceClient ticketClient;
+    private final EventServiceClient eventClient;
 
     // SCRUM-42: Obtener o crear carrito activo
 
@@ -59,7 +59,7 @@ public class CartService {
     public CartResponse addItem(String buyerId, AddItemRequest req) {
         Cart cart = getActiveCart(buyerId);
 
-        TicketTypeInfo info = ticketClient.getTicketTypeInfo(req.getTicketTypeId());
+        TicketTypeInfo info = eventClient.getTicketTypeInfo(req.getTicketTypeId());
 
         if (info.remainingCapacity() < req.getQuantity()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
@@ -98,7 +98,7 @@ public class CartService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                         "Ítem no encontrado en tu carrito"));
 
-        TicketTypeInfo info = ticketClient.getTicketTypeInfo(item.getTicketTypeId());
+        TicketTypeInfo info = eventClient.getTicketTypeInfo(item.getTicketTypeId());
         if (info.remainingCapacity() < req.getQuantity()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Solo hay " + info.remainingCapacity() + " cupos disponibles");

@@ -22,10 +22,8 @@ public class CartItem {
     @JoinColumn(name = "cart_id", nullable = false)
     private Cart cart;
 
-    /*
-      ID del tipo de boleta en el ticket-service.
-      Referencia externa
-     */
+        // ID del tipo de boleta en el event-service (referencia externa).
+        // Corresponde a TicketType.id en la BD del event-service.
     @Column(name = "ticket_type_id", nullable = false)
     private String ticketTypeId;
 
