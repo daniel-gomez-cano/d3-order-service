@@ -1,14 +1,19 @@
 package co.empresa.order_service.config;
 
 import java.math.BigDecimal;
+import java.util.Map;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * WebClient configurado para llamar al event-service.
@@ -25,6 +30,7 @@ class EventWebClientConfig {
     }
 }
 
+@Slf4j
 @Service
 public class EventServiceClient {
 
@@ -76,6 +82,60 @@ public class EventServiceClient {
             throw new ResponseStatusException(
                     HttpStatus.SERVICE_UNAVAILABLE,
                     "No se pudo conectar con el event-service: " + e.getMessage());
+        }
+    }
+
+    public void reserveTickets(Long eventId, Long ticketTypeId, int quantity) {
+        Map<String, Object> body = Map.of(
+                "ticketTypeId", ticketTypeId,
+                "quantity",     quantity
+        );
+        try {
+            webClient.post()
+                    .uri("/api/internal/events/{id}/reserve", eventId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(body)
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError, resp ->
+                            resp.bodyToMono(String.class)
+                                .flatMap(err -> Mono.error(new ResponseStatusException(
+                                        resp.statusCode(), "Error reservando stock: " + err))))
+                    .toBodilessEntity()
+                    .block();
+            log.info("[EventClient] Stock reservado — eventId={} ticketTypeId={} qty={}",
+                    eventId, ticketTypeId, quantity);
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "No se pudo actualizar stock en event-service: " + e.getMessage());
+        }
+    }
+
+    public void releaseTickets(Long eventId, Long ticketTypeId, int quantity) {
+        Map<String, Object> body = Map.of(
+                "ticketTypeId", ticketTypeId,
+                "quantity",     quantity
+        );
+        try {
+            webClient.post()
+                    .uri("/api/internal/events/{id}/release", eventId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(body)
+                    .retrieve()
+                    .onStatus(HttpStatusCode::isError, resp ->
+                            resp.bodyToMono(String.class)
+                                .flatMap(err -> Mono.error(new ResponseStatusException(
+                                        resp.statusCode(), "Error liberando stock: " + err))))
+                    .toBodilessEntity()
+                    .block();
+            log.info("[EventClient] Stock liberado — eventId={} ticketTypeId={} qty={}",
+                    eventId, ticketTypeId, quantity);
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "No se pudo liberar stock en event-service: " + e.getMessage());
         }
     }
 
