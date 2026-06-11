@@ -37,6 +37,6 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           mvn verify sonar:sonar \
-            -Dsonar.projectKey=daniel-gomez-cano_d3-auth-service \
+            -Dsonar.projectKey=daniel-gomez-cano_d3-order-service \
             -Dsonar.organization=daniel-gomez-cano \
             -Dsonar.host.url=https://sonarcloud.io

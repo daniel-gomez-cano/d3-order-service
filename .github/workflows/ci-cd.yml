@@ -81,7 +81,6 @@ jobs:
       - name: Ejecutar análisis SonarCloud
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # Usamos mvn compile antes de sonar:sonar para que encuentre los binarios
         run: mvn -B --no-transfer-progress compile sonar:sonar -Dsonar.projectKey=daniel-gomez-cano_d3-order-service -Dsonar.organization=daniel-gomez-cano
 
