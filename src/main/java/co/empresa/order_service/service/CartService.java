@@ -76,6 +76,7 @@ public class CartService {
                                     .cart(cart)
                                     .ticketTypeId(info.id())
                                     .ticketTypeName(info.name())
+                                    .eventId(info.eventId() != null ? String.valueOf(info.eventId()) : null)
                                     .quantity(req.getQuantity())
                                     .unitPrice(info.price())
                                     .build();
@@ -211,7 +212,9 @@ public class CartService {
 
         List<InternalCartSummaryResponse.ItemSummary> items = cart.getItems().stream()
                 .map(i -> InternalCartSummaryResponse.ItemSummary.builder()
+                        .ticketTypeId(i.getTicketTypeId())
                         .ticketTypeName(i.getTicketTypeName())
+                        .eventId(i.getEventId())
                         .quantity(i.getQuantity())
                         .unitPrice(i.getUnitPrice())
                         .build())

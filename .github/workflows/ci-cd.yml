@@ -1,21 +1,3 @@
-# ============================================================
-#  CI/CD — d3-order-service
-#
-#  Qué hace este pipeline:
-#    1. En todo push/PR a main: compila el código y corre los tests.
-#       Los resultados de tests se muestran en la pestaña "Checks"
-#       de GitHub con una tabla de tests pasados/fallidos.
-#    2. Solo cuando hay merge a main: construye el JAR, luego la
-#       imagen Docker, y la publica en Docker Hub con dos tags:
-#         • latest
-#         • sha-<primeros 7 caracteres del commit>
-#
-#  Secrets necesarios en GitHub → Settings → Secrets and variables → Actions:
-#    DOCKERHUB_USERNAME  →  tu usuario de Docker Hub
-#    DOCKERHUB_TOKEN     →  un Access Token de Docker Hub
-#                           (Hub → Account Settings → Security → New Access Token)
-# ============================================================
-
 name: CI/CD — d3-order-service
 
 on:
@@ -24,12 +6,7 @@ on:
   pull_request:
     branches: [ main ]
 
-# Permisos necesarios para que dorny/test-reporter pueda escribir
-# los resultados de tests como un "Check" visible en GitHub
-permissions:
-  contents: read
-  checks: write
-  pull-requests: write
+# Antes habian permisos globalos, los borre para evitar problemas con el Sonar
 
 jobs:
 
@@ -38,8 +15,13 @@ jobs:
   #  Corre tanto en PRs como en merges a main
   # ──────────────────────────────────────────────────────────
   build-and-test:
-    name: 🔨 Compilar y testear
+    name: Compilar y testear
     runs-on: ubuntu-latest
+    # Movimos los permisos requeridos por dorny/test-reporter a nivel de JOB
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
 
     steps:
       - name: Clonar repositorio
@@ -62,8 +44,6 @@ jobs:
 
       # dorny/test-reporter lee los XML de Surefire y los convierte
       # en una tabla de resultados visible en la pestaña "Checks" de GitHub.
-      # if: always() garantiza que corre incluso si los tests fallaron,
-      # para que puedas ver QUÉ test falló, no solo "el job falló".
       - name: Publicar resultados de tests en GitHub
         uses: dorny/test-reporter@v1
         if: always()
@@ -73,12 +53,44 @@ jobs:
           reporter: java-junit
 
   # ──────────────────────────────────────────────────────────
-  #  JOB 2: Empaquetar JAR y publicar imagen en Docker Hub
+  #  JOB 2: Análisis SonarCloud
+  # ──────────────────────────────────────────────────────────
+  sonarcloud:
+    name: Análisis SonarCloud
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    # Permisos a nivel de JOB para que SonarCloud no arroje error
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Importante para que Sonar analice todo el historial
+
+      - name: Configurar JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Ejecutar análisis SonarCloud
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        # Usamos mvn compile antes de sonar:sonar para que encuentre los binarios
+        run: mvn -B --no-transfer-progress compile sonar:sonar -Dsonar.projectKey=daniel-gomez-cano_d3-order-service -Dsonar.organization=daniel-gomez-cano
+
+  # ──────────────────────────────────────────────────────────
+  #  JOB 3: Empaquetar JAR y publicar imagen en Docker Hub
   #  Solo corre cuando hay un push (merge) a main
   # ──────────────────────────────────────────────────────────
   docker-publish:
-    name: 🐳 Publicar imagen Docker
-    needs: build-and-test
+    name: Publicar imagen Docker
+    needs: sonarcloud
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 

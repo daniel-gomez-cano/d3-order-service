@@ -26,6 +26,11 @@ public class CartItem {
         // Corresponde a TicketType.id en la BD del event-service.
     @Column(name = "ticket_type_id", nullable = false)
     private String ticketTypeId;
+    
+    @Column(name = "event_id")
+    private String eventId;
+
+     /* Nombre del tipo de boleta (guardado para mostrar sin llamar al ticket-service) */
 
     /* Nombre del tipo de boleta (guardado para mostrar sin llamar al ticket-service) */
     @Column(name = "ticket_type_name", nullable = false)
