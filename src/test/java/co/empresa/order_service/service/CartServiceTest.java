@@ -117,7 +117,7 @@ class CartServiceTest {
         when(cartRepo.findByBuyerIdAndStatus("comprador-1", CartStatus.ACTIVE))
                 .thenReturn(Optional.of(carrito));
 
-        TicketTypeInfo info = new TicketTypeInfo("tt-1", "VIP", BigDecimal.valueOf(50_000), 10, true, 1234567);
+        TicketTypeInfo info = new TicketTypeInfo("tt-1", "VIP", BigDecimal.valueOf(50_000), 10, true, 10L);
         when(eventClient.getTicketTypeInfo("tt-1")).thenReturn(info);
         when(cartRepo.save(carrito)).thenReturn(carrito);
 
@@ -140,7 +140,7 @@ class CartServiceTest {
                 .thenReturn(Optional.of(carrito));
 
         // Solo queda 1 cupo pero se piden 5
-        TicketTypeInfo info = new TicketTypeInfo("tt-1", "VIP", BigDecimal.valueOf(50_000), 1, true, 1234567);
+        TicketTypeInfo info = new TicketTypeInfo("tt-1", "VIP", BigDecimal.valueOf(50_000), 1, true, 10L);
         when(eventClient.getTicketTypeInfo("tt-1")).thenReturn(info);
 
         AddItemRequest req = new AddItemRequest();
@@ -164,7 +164,7 @@ class CartServiceTest {
         when(cartRepo.findByBuyerIdAndStatus("comprador-1", CartStatus.ACTIVE))
                 .thenReturn(Optional.of(carrito));
 
-        TicketTypeInfo info = new TicketTypeInfo("tt-1", "VIP", BigDecimal.valueOf(50_000), 10, true, 1234567);
+        TicketTypeInfo info = new TicketTypeInfo("tt-1", "VIP", BigDecimal.valueOf(50_000), 10, true, 10L);
         when(eventClient.getTicketTypeInfo("tt-1")).thenReturn(info);
         when(cartRepo.save(carrito)).thenReturn(carrito);
 
