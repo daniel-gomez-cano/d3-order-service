@@ -89,6 +89,7 @@ public class EventServiceClient {
             String name,
             BigDecimal price,
             int remainingCapacity,
-            boolean active
+            boolean active,
+            Long eventId
     ) {}
 }

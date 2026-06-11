@@ -31,7 +31,9 @@ public class InternalCartSummaryResponse {
     @Data
     @Builder
     public static class ItemSummary {
+        private String ticketTypeId;
         private String ticketTypeName;
+        private String eventId;
         private int quantity;
         private BigDecimal unitPrice;
     }
