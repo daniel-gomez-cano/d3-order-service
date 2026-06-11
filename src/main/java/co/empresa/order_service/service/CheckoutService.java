@@ -1,11 +1,13 @@
 package co.empresa.order_service.service;
 
+import co.empresa.order_service.config.EventServiceClient;
 import co.empresa.order_service.messaging.dto.OrderCreatedEvent;
 import co.empresa.order_service.messaging.dto.OrderCreatedEvent.OrderItem;
 import co.empresa.order_service.messaging.dto.PaymentResultEvent;
 import co.empresa.order_service.messaging.publisher.OrderEventPublisher;
 import co.empresa.order_service.model.Cart;
 import co.empresa.order_service.model.Cart.CartStatus;
+import co.empresa.order_service.model.CartItem;
 import co.empresa.order_service.repository.CartRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -31,6 +33,7 @@ public class CheckoutService {
 
     private final CartRepository cartRepo;
     private final OrderEventPublisher publisher;
+    private final EventServiceClient eventServiceClient;
 
     // ── Paso 1: El cliente hace checkout ──────────────────────────────────────
 
@@ -98,8 +101,36 @@ public class CheckoutService {
     public void handlePaymentApproved(PaymentResultEvent event) {
         log.info("Pago APPROVED para cartId={} paymentId={}",
                 event.getCartId(), event.getPaymentId());
-        // El carrito ya está en CHECKED_OUT — no hay más que hacer aquí.
-        // El ticket-service escucha su propio evento del payment-service.
+        Cart cart = cartRepo.findById(event.getCartId()).orElse(null);
+        if (cart == null) {
+            log.error("[Stock] Carrito no encontrado para cartId={}", event.getCartId());
+            return;
+        }
+
+        for (CartItem item : cart.getItems()) {
+
+            if (item.getEventId() == null || item.getTicketTypeId() == null) {
+                log.warn("[Stock] CartItem sin eventId o ticketTypeId — itemId={}, skipping",
+                        item.getId());
+                continue;
+            }
+
+            try {
+                Long eventId      = Long.parseLong(item.getEventId());
+                Long ticketTypeId = Long.parseLong(item.getTicketTypeId());
+
+                eventServiceClient.reserveTickets(eventId, ticketTypeId, item.getQuantity());
+
+            } catch (ResponseStatusException e) {
+                // 409 = sin stock — inconsistencia grave (pago cobrado sin stock)
+                log.error("[Stock] Conflicto de stock — eventId={} ticketTypeId={}: {}",
+                        item.getEventId(), item.getTicketTypeId(), e.getReason());
+            } catch (Exception e) {
+                // Error de red — loguear, nunca revertir un pago ya cobrado
+                log.error("[Stock] Error llamando a event-service — eventId={} ticketTypeId={}: {}",
+                        item.getEventId(), item.getTicketTypeId(), e.getMessage(), e);
+            }
+        }
     }
 
     /**
