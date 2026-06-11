@@ -28,7 +28,7 @@ public class RabbitMQConfig {
 
     // ── Nombres de colas ──────────────────────────────────────────────────────
     public static final String ORDER_CREATED_QUEUE  = "order.created.queue";
-    public static final String PAYMENT_RESULT_QUEUE = "payment.result.queue";
+    public static final String PAYMENT_RESULT_QUEUE = "payment.result.order.queue"; // antes: "payment.result.queue"
 
     // ── Routing keys ──────────────────────────────────────────────────────────
     public static final String ORDER_CREATED_KEY  = "order.created";
