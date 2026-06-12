@@ -15,6 +15,7 @@ public class PaymentResultEvent {
     private String paymentId;
     private String mercadoPagoPaymentId;
     private String buyerId;
+    private String buyerEmail;
     private String status;
     private BigDecimal amount;
     private String statusDetail;
