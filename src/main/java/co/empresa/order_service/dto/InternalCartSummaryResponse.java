@@ -24,6 +24,7 @@ public class InternalCartSummaryResponse {
 
     private String cartId;
     private String buyerId;
+    private String buyerEmail;
     private BigDecimal total;
     private String currency;
     private List<ItemSummary> items;
