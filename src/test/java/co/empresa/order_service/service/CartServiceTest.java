@@ -3,6 +3,7 @@ package co.empresa.order_service.service;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -10,6 +11,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import static org.mockito.Mockito.never;
@@ -27,6 +29,8 @@ import co.empresa.order_service.config.EventServiceClient.TicketTypeInfo;
 import co.empresa.order_service.dto.AddItemRequest;
 import co.empresa.order_service.dto.ApplyDiscountRequest;
 import co.empresa.order_service.dto.CartResponse;
+import co.empresa.order_service.dto.CartSummaryResponse;
+import co.empresa.order_service.dto.InternalCartSummaryResponse;
 import co.empresa.order_service.model.Cart;
 import co.empresa.order_service.model.Cart.CartStatus;
 import co.empresa.order_service.model.CartItem;
@@ -379,6 +383,122 @@ class CartServiceTest {
                 .extracting(e -> ((ResponseStatusException) e).getStatusCode())
                 .isEqualTo(GONE);
     }
+
+        @Test
+        void markCheckedOut_cuandoYaEstaCheckout_noVuelveAGuardar() {
+                Cart carrito = carritoActivo("comprador-1");
+                carrito.setStatus(CartStatus.CHECKED_OUT);
+                when(cartRepo.findById("carrito-1")).thenReturn(Optional.of(carrito));
+
+                service.markCheckedOut("carrito-1");
+
+                verify(cartRepo, never()).save(any());
+        }
+
+        @Test
+        void getSummary_retornaSubtotalDescuentoYTotal() {
+                Cart carrito = carritoActivo("comprador-1");
+                carrito.getItems().add(itemEnCarrito(carrito, "tt-1", 2));
+                carrito.setDiscountCode(codigoDescuento("PROMO20", true, null, 0, null));
+
+                when(cartRepo.findByBuyerIdAndStatus("comprador-1", CartStatus.ACTIVE))
+                                .thenReturn(Optional.of(carrito));
+
+                CartSummaryResponse result = service.getSummary("comprador-1");
+
+                assertThat(result.getSubtotal()).isEqualByComparingTo("100000");
+                assertThat(result.getDiscountAmount()).isEqualByComparingTo("20000");
+                assertThat(result.getTotal()).isEqualByComparingTo("80000");
+                assertThat(result.getDiscountCode()).isEqualTo("PROMO20");
+                assertThat(result.getItems()).hasSize(1);
+        }
+
+        @Test
+        void getCartSummaryById_retornaResumenInterno() {
+                Cart carrito = carritoActivo("comprador-1");
+                carrito.getItems().add(itemEnCarrito(carrito, "tt-1", 2));
+                when(cartRepo.findById("carrito-1")).thenReturn(Optional.of(carrito));
+
+                InternalCartSummaryResponse result = service.getCartSummaryById("carrito-1");
+
+                assertThat(result.getCartId()).isEqualTo("carrito-1");
+                assertThat(result.getBuyerId()).isEqualTo("comprador-1");
+                assertThat(result.getCurrency()).isEqualTo("COP");
+                assertThat(result.getTotal()).isEqualByComparingTo("100000");
+                assertThat(result.getItems()).hasSize(1);
+                assertThat(result.getItems().get(0).getTicketTypeId()).isEqualTo("tt-1");
+        }
+
+        @Test
+        void getCartSummaryById_cuandoEstaExpirado_lanzaGone() {
+                Cart carrito = carritoActivo("comprador-1");
+                carrito.setStatus(CartStatus.EXPIRED);
+                when(cartRepo.findById("carrito-expirado")).thenReturn(Optional.of(carrito));
+
+                assertThatThrownBy(() -> service.getCartSummaryById("carrito-expirado"))
+                                .isInstanceOf(ResponseStatusException.class)
+                                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                                .isEqualTo(GONE);
+        }
+
+        @Test
+        void getCartSummaryById_cuandoYaFuePagado_lanzaConflict() {
+                Cart carrito = carritoActivo("comprador-1");
+                carrito.setStatus(CartStatus.PAID);
+                when(cartRepo.findById("carrito-pagado")).thenReturn(Optional.of(carrito));
+
+                assertThatThrownBy(() -> service.getCartSummaryById("carrito-pagado"))
+                                .isInstanceOf(ResponseStatusException.class)
+                                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                                .isEqualTo(CONFLICT);
+        }
+
+        @Test
+        void getCartSummaryById_cuandoNoExiste_lanzaNotFound() {
+                when(cartRepo.findById("carrito-inexistente")).thenReturn(Optional.empty());
+
+                assertThatThrownBy(() -> service.getCartSummaryById("carrito-inexistente"))
+                                .isInstanceOf(ResponseStatusException.class)
+                                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                                .isEqualTo(NOT_FOUND);
+        }
+
+        @Test
+        void expireOldCarts_marcaLosCarritosComoExpirados() {
+                Cart carrito1 = carritoActivo("comprador-1");
+                carrito1.setExpiresAt(LocalDateTime.now().minusMinutes(5));
+                Cart carrito2 = carritoActivo("comprador-2");
+                carrito2.setExpiresAt(LocalDateTime.now().minusMinutes(1));
+
+                when(cartRepo.findByStatusAndExpiresAtBefore(eq(CartStatus.ACTIVE), any(LocalDateTime.class)))
+                                .thenReturn(List.of(carrito1, carrito2));
+                when(cartRepo.save(any(Cart.class))).thenAnswer(inv -> inv.getArgument(0));
+
+                service.expireOldCarts();
+
+                assertThat(carrito1.getStatus()).isEqualTo(CartStatus.EXPIRED);
+                assertThat(carrito2.getStatus()).isEqualTo(CartStatus.EXPIRED);
+                verify(cartRepo, times(2)).save(any(Cart.class));
+        }
+
+        @Test
+        void addItem_cuandoCarritoActivoEstaVencido_lanzaGoneYExpiraElCarrito() {
+                Cart carrito = carritoVencido("comprador-1");
+                when(cartRepo.findByBuyerIdAndStatus("comprador-1", CartStatus.ACTIVE))
+                                .thenReturn(Optional.of(carrito));
+
+                AddItemRequest req = new AddItemRequest();
+                req.setTicketTypeId("tt-1");
+                req.setQuantity(1);
+
+                assertThatThrownBy(() -> service.addItem("comprador-1", req))
+                                .isInstanceOf(ResponseStatusException.class)
+                                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                                .isEqualTo(GONE);
+
+                assertThat(carrito.getStatus()).isEqualTo(CartStatus.EXPIRED);
+                verify(cartRepo).save(carrito);
+        }
 
     // ================================================================
     //  Helpers
