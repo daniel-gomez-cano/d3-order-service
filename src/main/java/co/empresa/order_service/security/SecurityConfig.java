@@ -19,7 +19,9 @@ import org.springframework.security.web.SecurityFilterChain;
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
-
+    // Configuración de la cadena de filtros de seguridad:
+    // - Se desactiva CSRF porque el servicio funciona sin sesiones y con JWT.
+    // - Se establece política de sesión STATELESS (no se guarda estado en el servidor).
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
